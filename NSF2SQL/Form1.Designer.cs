@@ -112,7 +112,7 @@
             this.label1.Name = "label1";
             this.label1.Size = new System.Drawing.Size(82, 13);
             this.label1.TabIndex = 5;
-            this.label1.Text = "NSF Databases";
+            this.label1.Text = "Thông tin NSF Databases:";
             // 
             // saveFileDialog1
             // 
@@ -133,7 +133,7 @@
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.MinimumSize = new System.Drawing.Size(420, 167);
             this.Name = "Form1";
-            this.Text = "NSF 2 SQL";
+            this.Text = "BSSD CONVERT LOTUS";
             this.ResumeLayout(false);
             this.PerformLayout();
 

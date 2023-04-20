@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -33,111 +34,143 @@ namespace NSF2SQL
 
         public string CreateTable(Table table)
         {
-            string query =
+            //Console.WriteLine("CreateTable : " + table.Name);
+            try
+            {
+                string query =
                 "CREATE TABLE `" + table.Name + "` (\n" +
                 "`id` INT NOT NULL,\n";
-            foreach (Column column in table.Columns.Values)
-            {
-                query += "`" + column.Name + "` " + column.Type + " NULL,\n";
+                foreach (Column column in table.Columns.Values)
+                {
+                    query += "`" + column.Name + "` " + column.Type + " NULL,\n";
+                }
+                query += "PRIMARY KEY (`id`)";
+                if (table.LinkedTable != null)
+                {
+                    query +=
+                        ",\n" +
+                        "KEY `" + table.Name + "_idx` (`" + table.LinkedTable + "id`),\n" +
+                        "CONSTRAINT `" + table.Name + "` FOREIGN KEY (`" + table.LinkedTable + "id`) REFERENCES `" + table.LinkedTable + "` (`id`) ON DELETE CASCADE ON UPDATE CASCADE";
+                }
+                query += ");\n";
+                return query;
             }
-            query += "PRIMARY KEY (`id`)";
-            if (table.LinkedTable != null)
-            {
-                query +=
-                    ",\n" +
-                    "KEY `" + table.Name + "_idx` (`" + table.LinkedTable + "id`),\n" +
-                    "CONSTRAINT `" + table.Name + "` FOREIGN KEY (`" + table.LinkedTable + "id`) REFERENCES `" + table.LinkedTable + "` (`id`) ON DELETE CASCADE ON UPDATE CASCADE";
+            catch (Exception e) {
+                Console.WriteLine("CREATE TABLE");
+                Console.WriteLine(e.ToString());
+                Console.WriteLine(table.ToString());
+                return "";
             }
-            query += ");\n";
-            return query;
+            
         }
 
         public string BeginInsertTable(Table table)
         {
-
-            string query =
-                "LOCK TABLES `" + table.Name + "` WRITE;\n" +
+            //Console.WriteLine("Begin Insert Table : " + table.Name);
+            try
+            {
+                string query =
+                //"LOCK TABLES `" + table.Name + "` WRITE;\n" +
                 "/*!40000 ALTER TABLE `" + table.Name + "` DISABLE KEYS */;\n" +
                 "INSERT INTO `" + table.Name + "` (`id`,`" + String.Join("`,`", table.Columns.Keys) + "`) VALUES";
-            return query;
+                return query;
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("ERROR BEGIN INSERT TABLE");
+                Console.WriteLine (e.ToString());
+                return "";
+            }
+            
         }
 
         public List<string> InsertTableRowsToList(Table table)
         {
+            //Console.WriteLine("START INSERT TABLE ROW: " + table.Name);
             List<string> rows = new List<string>(table.RowCount);
             for (int i = 0; i < table.RowCount; i++)
             {
-                List<string> columnValues = new List<string>(table.Columns.Count);
-                foreach (Column column in table.Columns.Values)
+                try
                 {
-                    if (column.Values.ContainsKey(i + 1))
+                    List<string> columnValues = new List<string>(table.Columns.Count);
+                    foreach (Column column in table.Columns.Values)
                     {
-                        if (column.Values[i + 1] != null)
+                        if (column.Values.ContainsKey(i + 1))
                         {
-                            string value = column.Values[i + 1].ToString();
-                            switch (column.Type)
+                            if (column.Values[i + 1] != null)
                             {
-                                case "decimal(20,10)":
-                                    if (value == "")
-                                    {
-                                        value = "NULL";
-                                    }
-                                    else if (value == "Infinity")
-                                    {
-                                        value = "9999999999.9999999999";
-                                    }
-                                    else
-                                    {
-                                        double temp;
-                                        if (!double.TryParse(value, out temp))
+                                string value = column.Values[i + 1].ToString();
+                                switch (column.Type)
+                                {
+                                    case "decimal(20,10)":
+                                        if (value == "")
                                         {
                                             value = "NULL";
                                         }
-                                    }
-                                    break;
-                                case "datetime":
-                                    if (value == "")
-                                    {
-                                        value = "NULL";
-                                    }
-                                    else
-                                    {
-                                        DateTime temp;
-                                        if (DateTime.TryParse(value, out temp))
+                                        else if (value == "Infinity")
                                         {
-                                            if (column.Values[i + 1] is DateTime)
-                                            {
-                                                value = ((DateTime)column.Values[i + 1]).ToString("yyyy-MM-dd HH:mm:ss");
-                                            }
-                                            else
-                                            {
-                                                value = temp.ToString("yyyy-MM-dd HH:mm:ss");
-                                            }
-                                            value = "'" + value + "'";
+                                            value = "9999999999.9999999999";
                                         }
                                         else
                                         {
+                                            double temp;
+                                            if (!double.TryParse(value, out temp))
+                                            {
+                                                value = "NULL";
+                                            }
+                                        }
+                                        break;
+                                    case "datetime":
+                                        if (value == "")
+                                        {
                                             value = "NULL";
                                         }
-                                    }
-                                    break;
-                                default:
-                                    value = "'" + value.ToString().Replace("'", "''") + "'";
-                                    break;
+                                        else
+                                        {
+                                            DateTime temp;
+                                            if (DateTime.TryParse(value, out temp))
+                                            {
+                                                if (column.Values[i + 1] is DateTime)
+                                                {
+                                                    value = ((DateTime)column.Values[i + 1]).ToString("yyyy-MM-dd HH:mm:ss");
+                                                }
+                                                else
+                                                {
+                                                    value = temp.ToString("yyyy-MM-dd HH:mm:ss");
+                                                }
+                                                value = "'" + value + "'";
+                                            }
+                                            else
+                                            {
+                                                value = "NULL";
+                                            }
+                                        }
+                                        break;
+                                    default:
+                                        value = "'" + value.ToString().Replace("'", "''") + "'";
+                                        break;
+                                }
+                                columnValues.Add(value);
                             }
-                            columnValues.Add(value);
+                            else
+                            {
+                                columnValues.Add("NULL");
+                            }
                         }
                         else
                         {
                             columnValues.Add("NULL");
                         }
                     }
-                    else
-                    {
-                        columnValues.Add("NULL");
-                    }
+                    rows.Add("(" + (i + 1) + "," + String.Join(",", columnValues) + ")");
                 }
-                rows.Add("(" + (i + 1) + "," + String.Join(",", columnValues) + ")");
+                catch (Exception ex)
+                {
+                    Console.WriteLine("ERROR CREATE TABLE ROW");
+                    Trace.WriteLine(ex.ToString());
+                    continue;
+                }
+                
             }
             return rows;
         }

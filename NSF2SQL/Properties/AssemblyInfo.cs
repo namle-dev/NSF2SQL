@@ -5,11 +5,11 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("NSF2SQL")]
+[assembly: AssemblyTitle("BSSD CONVERT NSF")]
 [assembly: AssemblyDescription("Convert Lotus Notes (.nsf) database to SQL")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("UziTech")]
-[assembly: AssemblyProduct("NSF2SQL")]
+[assembly: AssemblyProduct("BSSD CONVERT NSF")]
 [assembly: AssemblyCopyright("Copyright ©  2014")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]

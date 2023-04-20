@@ -9,6 +9,9 @@ using System.Text.RegularExpressions;
 using System.Data.Common;
 using System.Data.SqlClient;
 using System.Linq;
+using System.Diagnostics;
+using System.Text;
+using System.Net.Mail;
 
 namespace NSF2SQL
 {
@@ -227,7 +230,7 @@ namespace NSF2SQL
                 ProgressDialog pDialog = new ProgressDialog();
                 pDialog.Title = "Get Databases";
                 pDialog.Style = ProgressBarStyle.Marquee;
-                pDialog.DoWork += delegate(object dialog, DoWorkEventArgs e)
+                pDialog.DoWork += delegate (object dialog, DoWorkEventArgs e)
                 {
                     try
                     {
@@ -244,7 +247,7 @@ namespace NSF2SQL
                                 return;
                             }
                             string[] path = db.FilePath.Split(new char[] { '\\' });
-                            treeView1.Invoke((MethodInvoker)delegate()
+                            treeView1.Invoke((MethodInvoker)delegate ()
                             {
                                 TreeNodeCollection nodes = treeView1.Nodes;
                                 for (int n = 0; n < path.Length - 1; n++)
@@ -268,11 +271,11 @@ namespace NSF2SQL
                         MessageBox.Show(ex.Message);
                     }
                 };
-                pDialog.ProgressChanged += delegate(object dialog, ProgressChangedEventArgs e)
+                pDialog.ProgressChanged += delegate (object dialog, ProgressChangedEventArgs e)
                 {
                     pDialog.Message = e.ProgressPercentage + " Databases Found";
                 };
-                pDialog.Completed += delegate(object dialog, RunWorkerCompletedEventArgs e)
+                pDialog.Completed += delegate (object dialog, RunWorkerCompletedEventArgs e)
                 {
                     //treeView1.Invoke((MethodInvoker)delegate()
                     //{
@@ -335,7 +338,7 @@ namespace NSF2SQL
             ProgressDialog pDialog = new ProgressDialog();
             pDialog.Title = "Exporting Documents";
             #region Export Documents
-            pDialog.DoWork += delegate(object dialog, DoWorkEventArgs e)
+            pDialog.DoWork += delegate (object dialog, DoWorkEventArgs e)
             {
                 ExportTarget exportDialog = new ExportTarget();
 
@@ -371,7 +374,7 @@ namespace NSF2SQL
                         {
                             //get form
                             string form = (string)doc.GetItemValue("Form")[0];
-                            
+
                             if (!tables.ContainsKey(form))
                             {
                                 tables.Add(form, new Table(form));
@@ -401,6 +404,10 @@ namespace NSF2SQL
                                         break;
                                     case IT_TYPE.DATETIMES:
                                         type = "datetime";
+                                        break;
+                                    case IT_TYPE.ATTACHMENT:
+                                        type = "blob";
+                                        Console.WriteLine(item.Values);
                                         break;
                                     default:
                                         type = "text";
@@ -552,7 +559,7 @@ namespace NSF2SQL
                     lastTicks = 0;
                     count = 0;
                     DialogResult result = DialogResult.Cancel;
-                    Invoke((MethodInvoker)delegate() { result = exportDialog.ShowDialog(this); });
+                    Invoke((MethodInvoker)delegate () { result = exportDialog.ShowDialog(this); });
                     if (result == DialogResult.Cancel)
                     {
                         e.Cancel = true;
@@ -568,100 +575,119 @@ namespace NSF2SQL
                         sqlGenerator = new MySqlGenerator();
                     }
 
-                    do
+
+                    if (exportDialog.ServerExport)
                     {
-                        if (exportDialog.ServerExport)
+                        InputBox input = null;
+                        Invoke((MethodInvoker)delegate () { input = InputBox.Show(pDialog.Window, "SQL server info?", new InputBoxItem[] { new InputBoxItem("Server", mysqlServer), new InputBoxItem("Database", mysqlDatabase), new InputBoxItem("Username", mysqlUsername), new InputBoxItem("Password", mysqlPassword, true), new InputBoxItem("Number of rows per INSERT", mysqlNumRowsPerInsert.ToString()) }, InputBoxButtons.OKCancel); });
+                        if (input.Result == InputBoxResult.OK)
                         {
-                            InputBox input = null;
-                            Invoke((MethodInvoker)delegate() { input = InputBox.Show(pDialog.Window, "SQL server info?", new InputBoxItem[] { new InputBoxItem("Server", mysqlServer), new InputBoxItem("Database", mysqlDatabase), new InputBoxItem("Username", mysqlUsername), new InputBoxItem("Password", mysqlPassword, true), new InputBoxItem("Number of rows per INSERT", mysqlNumRowsPerInsert.ToString()) }, InputBoxButtons.OKCancel); });
-                            if (input.Result == InputBoxResult.OK)
+                            mysqlServer = input.Items["Server"];
+                            mysqlDatabase = input.Items["Database"];
+                            mysqlUsername = input.Items["Username"];
+                            mysqlPassword = input.Items["Password"];
+                            int.TryParse(input.Items["Number of rows per INSERT"], out mysqlNumRowsPerInsert);
+
+                            DbConnection conn = null;
+                            if (exportDialog.MySqlExport)
                             {
-                                mysqlServer = input.Items["Server"];
-                                mysqlDatabase = input.Items["Database"];
-                                mysqlUsername = input.Items["Username"];
-                                mysqlPassword = input.Items["Password"];
-                                int.TryParse(input.Items["Number of rows per INSERT"], out mysqlNumRowsPerInsert);
+                                conn = new MySqlConnection("SERVER=" + mysqlServer + ";USERNAME=" + mysqlUsername + ";PASSWORD=" + mysqlPassword + ";");
+                            }
+                            else if (exportDialog.SqlServerExport)
+                            {
+                                conn = new SqlConnection("Server=" + mysqlServer + ";User Id=" + mysqlUsername + ";Password=" + mysqlPassword + ";");
+                            }
 
-                                DbConnection conn = null;
-                                if (exportDialog.MySqlExport)
-                                {
-                                    conn = new MySqlConnection("SERVER=" + mysqlServer + ";USERNAME=" + mysqlUsername + ";PASSWORD=" + mysqlPassword + ";");
-                                }
-                                else if (exportDialog.SqlServerExport)
-                                {
-                                    conn = new SqlConnection("Server=" + mysqlServer + ";User Id=" + mysqlUsername + ";Password=" + mysqlPassword + ";");
-                                }
+                            startTicks = DateTime.Now.Ticks;
+                            conn.Open();
 
+                            string[] tokens = null;
+                            if (exportDialog.SqlServerExport)
+                            {
+                                tokens = sqlGenerator.CreateDatabase(mysqlDatabase).Split(new string[] { "GO\r\n" }, StringSplitOptions.None);
+                            }
+                            else
+                            {
+                                tokens = new string[] { sqlGenerator.CreateDatabase(mysqlDatabase) + sqlGenerator.SetVariables() };
+                            }
+
+                            DbCommand command = conn.CreateCommand();
+                            foreach (string sqlString in tokens)
+                            {
+                                command.CommandText = sqlString;
+                                command.ExecuteNonQuery();
+                            }
+                            do
+                            {
                                 try
                                 {
-                                    startTicks = DateTime.Now.Ticks;
-                                    conn.Open();
-
-                                    string[] tokens = null;
-                                    if (exportDialog.SqlServerExport)
-                                    {
-                                        tokens = sqlGenerator.CreateDatabase(mysqlDatabase).Split(new string[] { "GO\r\n" }, StringSplitOptions.None);
-                                    }
-                                    else
-                                    {
-                                        tokens = new string[] { sqlGenerator.CreateDatabase(mysqlDatabase) + sqlGenerator.SetVariables() };
-                                    }
-
-                                    DbCommand command = conn.CreateCommand();
-                                    foreach (string sqlString in tokens)
-                                    {
-                                        command.CommandText = sqlString;
-                                        command.ExecuteNonQuery();
-                                    }
-
                                     foreach (Table table in newTables.Values.Where(t => string.IsNullOrEmpty(t.LinkedTable)))
                                     {
-                                        //check if cancelled
-                                        if (pDialog.IsCancelled)
+                                        try
                                         {
-                                            e.Cancel = true;
-                                            return;
-                                        }
-                                        pDialog.ReportProgress(++count, "Inserting SQL");
-                                        if (table.Columns.Count > 0)
-                                        {
-                                            command.CommandText = sqlGenerator.CreateTable(table);
-                                            command.ExecuteNonQuery();
-                                            List<string> rows = sqlGenerator.InsertTableRowsToList(table);
-                                            for (int i = 0; i < rows.Count; i += mysqlNumRowsPerInsert)
+                                            //check if cancelled
+                                            if (pDialog.IsCancelled)
                                             {
-                                                command.CommandText = sqlGenerator.BeginInsertTable(table);
-                                                command.CommandText += String.Join(",", rows.GetRange(i, Math.Min(rows.Count - i, mysqlNumRowsPerInsert))) + ";\n";
-                                                command.CommandText += sqlGenerator.EndInsertTable(table);
-                                                command.ExecuteNonQuery();
-                                                pDialog.ReportProgress(count, "Inserting SQL");
+                                                e.Cancel = true;
+                                                return;
                                             }
+                                            pDialog.ReportProgress(++count, "Inserting SQL");
+                                            if (table.Columns.Count > 0)
+                                            {
+                                                command.CommandText = sqlGenerator.CreateTable(table);
+                                                command.ExecuteNonQuery();
+                                                List<string> rows = sqlGenerator.InsertTableRowsToList(table);
+                                                for (int i = 0; i < rows.Count; i += mysqlNumRowsPerInsert)
+                                                {
+                                                    command.CommandText = sqlGenerator.BeginInsertTable(table);
+                                                    command.CommandText += String.Join(",", rows.GetRange(i, Math.Min(rows.Count - i, mysqlNumRowsPerInsert))) + ";\n";
+                                                    command.CommandText += sqlGenerator.EndInsertTable(table);
+                                                    command.ExecuteNonQuery();
+                                                    pDialog.ReportProgress(count, "Inserting SQL");
+                                                }
+                                            }
+                                        }
+                                        catch (Exception exc)
+                                        {
+                                            Console.WriteLine(exc.ToString());
+                                            Console.WriteLine("Query Loooix: " + command.CommandText);
+                                            continue;
                                         }
                                     }
 
                                     foreach (Table table in newTables.Values.Where(t => !string.IsNullOrEmpty(t.LinkedTable)))
                                     {
-                                        //check if cancelled
-                                        if (pDialog.IsCancelled)
+                                        try
                                         {
-                                            e.Cancel = true;
-                                            return;
-                                        }
-                                        pDialog.ReportProgress(++count, "Inserting SQL");
-                                        if (table.Columns.Count > 0)
-                                        {
-                                            command.CommandText = sqlGenerator.CreateTable(table);
-                                            command.ExecuteNonQuery();
-                                            List<string> rows = sqlGenerator.InsertTableRowsToList(table);
-                                            for (int i = 0; i < rows.Count; i += mysqlNumRowsPerInsert)
+                                            //check if cancelled
+                                            if (pDialog.IsCancelled)
                                             {
-                                                command.CommandText = sqlGenerator.BeginInsertTable(table);
-                                                command.CommandText += String.Join(",", rows.GetRange(i, Math.Min(rows.Count - i, mysqlNumRowsPerInsert))) + ";\n";
-                                                command.CommandText += sqlGenerator.EndInsertTable(table);
+                                                e.Cancel = true;
+                                                return;
+                                            }
+                                            pDialog.ReportProgress(++count, "Inserting SQL");
+                                            if (table.Columns.Count > 0)
+                                            {
+                                                command.CommandText = sqlGenerator.CreateTable(table);
                                                 command.ExecuteNonQuery();
-                                                pDialog.ReportProgress(count, "Inserting SQL");
+                                                List<string> rows = sqlGenerator.InsertTableRowsToList(table);
+                                                for (int i = 0; i < rows.Count; i += mysqlNumRowsPerInsert)
+                                                {
+                                                    command.CommandText = sqlGenerator.BeginInsertTable(table);
+                                                    command.CommandText += String.Join(",", rows.GetRange(i, Math.Min(rows.Count - i, mysqlNumRowsPerInsert))) + ";\n";
+                                                    command.CommandText += sqlGenerator.EndInsertTable(table);
+                                                    command.ExecuteNonQuery();
+                                                    pDialog.ReportProgress(count, "Inserting SQL");
+                                                }
                                             }
                                         }
+                                        catch (Exception exc)
+                                        {
+                                            Console.WriteLine(exc.ToString());
+                                            Console.WriteLine("Query Loooix: " + command.CommandText);
+                                            continue;
+                                        }
+
                                     }
 
                                     command.CommandText = sqlGenerator.RestoreVariables();
@@ -673,7 +699,8 @@ namespace NSF2SQL
                                 }
                                 catch (Exception ex)
                                 {
-                                    MessageBox.Show(ex.Message);
+                                    //MessageBox.Show(ex.Message);
+                                    Console.WriteLine(ex.ToString());
                                 }
                                 finally
                                 {
@@ -681,75 +708,11 @@ namespace NSF2SQL
                                 }
 
                                 conn.Dispose();
-                            }
+                            } while (!complete);
                         }
-                        else if (exportDialog.FileExport)
-                        {
-                            saveFileDialog1.FileName = "export.sql";
-                            result = DialogResult.Cancel;
-                            Invoke((MethodInvoker)delegate() { result = saveFileDialog1.ShowDialog(pDialog.Window); });
-                            if (result == DialogResult.OK)
-                            {
-                                InputBox input = null;
-                                Invoke((MethodInvoker)delegate() { input = InputBox.Show(pDialog.Window, "Database name?", "Database Name", mysqlDatabase, InputBoxButtons.OKCancel); });
-                                if (input.Result == InputBoxResult.OK)
-                                {
-                                    mysqlDatabase = input.Items["Database Name"];
-                                    StreamWriter file = new StreamWriter(saveFileDialog1.FileName, false);
-                                    try
-                                    {
-                                        startTicks = DateTime.Now.Ticks;
-                                        file.WriteLine(sqlGenerator.CreateDatabase(mysqlDatabase));
-                                        file.WriteLine(sqlGenerator.SetVariables());
-                                        foreach (Table table in newTables.Values.Where(t => string.IsNullOrEmpty(t.LinkedTable)))
-                                        {
-                                            //check if cancelled
-                                            if (pDialog.IsCancelled)
-                                            {
-                                                e.Cancel = true;
-                                                return;
-                                            }
-                                            pDialog.ReportProgress(++count, "Formatting SQL");
-                                            if (table.Columns.Count > 0)
-                                            {
-                                                file.WriteLine(sqlGenerator.CreateTable(table));
-                                                file.WriteLine(sqlGenerator.BeginInsertTable(table));
-                                                file.WriteLine(sqlGenerator.InsertTableRowsToString(table));
-                                                file.WriteLine(sqlGenerator.EndInsertTable(table));
-                                            }
-                                        }
-                                        foreach (Table table in newTables.Values.Where(t => !string.IsNullOrEmpty(t.LinkedTable)))
-                                        {
-                                            //check if cancelled
-                                            if (pDialog.IsCancelled)
-                                            {
-                                                e.Cancel = true;
-                                                return;
-                                            }
-                                            pDialog.ReportProgress(++count, "Formatting SQL");
-                                            if (table.Columns.Count > 0)
-                                            {
-                                                file.WriteLine(sqlGenerator.CreateTable(table));
-                                                file.WriteLine(sqlGenerator.BeginInsertTable(table));
-                                                file.WriteLine(sqlGenerator.InsertTableRowsToString(table));
-                                                file.WriteLine(sqlGenerator.EndInsertTable(table));
-                                            }
-                                        }
-                                        file.WriteLine(sqlGenerator.RestoreVariables());
-                                        complete = true;
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        MessageBox.Show(ex.ToString());
-                                    }
-                                    finally
-                                    {
-                                        file.Close();
-                                    }
-                                }
-                            }
-                        }
-                    } while (!complete);
+                    }
+
+
                 }
                 catch (Exception ex)
                 {
@@ -760,7 +723,7 @@ namespace NSF2SQL
                 exportDialog.Dispose();
             };
             #endregion
-            pDialog.ProgressChanged += delegate(object dialog, ProgressChangedEventArgs e)
+            pDialog.ProgressChanged += delegate (object dialog, ProgressChangedEventArgs e)
             {
                 if (lastTicks == 0)
                 {
@@ -791,7 +754,7 @@ namespace NSF2SQL
                     pDialog.Progress = (100 * e.ProgressPercentage / total) % 101;
                 }
             };
-            pDialog.Completed += delegate(object dialog, RunWorkerCompletedEventArgs e)
+            pDialog.Completed += delegate (object dialog, RunWorkerCompletedEventArgs e)
             {
                 if (!e.Cancelled)
                 {
