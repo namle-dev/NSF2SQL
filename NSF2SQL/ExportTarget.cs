@@ -50,5 +50,13 @@ namespace NSF2SQL
                 return this.ServerTypeComboBox.SelectedIndex == 1;
             }
         }
+
+        public bool PostgresServerExport
+        {
+            get
+            {
+                return this.ServerTypeComboBox.SelectedIndex == 2;
+            }
+        }
     }
 }

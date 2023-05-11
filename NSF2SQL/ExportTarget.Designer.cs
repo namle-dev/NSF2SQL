@@ -77,7 +77,8 @@
 			this.ServerTypeComboBox.FormattingEnabled = true;
 			this.ServerTypeComboBox.Items.AddRange(new object[] {
             "MySQL",
-            "SQL Server (T-SQL)"});
+            "SQL Server (T-SQL)",
+			"Postgres"});
 			this.ServerTypeComboBox.Location = new System.Drawing.Point(82, 6);
 			this.ServerTypeComboBox.Margin = new System.Windows.Forms.Padding(1, 1, 1, 1);
 			this.ServerTypeComboBox.Name = "ServerTypeComboBox";

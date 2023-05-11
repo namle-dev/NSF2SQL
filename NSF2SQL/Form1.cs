@@ -5,6 +5,7 @@ using System.Windows.Forms;
 using Domino;
 using System.IO;
 using MySql.Data.MySqlClient;
+
 using System.Text.RegularExpressions;
 using System.Data.Common;
 using System.Data.SqlClient;
@@ -12,6 +13,9 @@ using System.Linq;
 using System.Diagnostics;
 using System.Text;
 using System.Net.Mail;
+using static System.Net.Mime.MediaTypeNames;
+using Npgsql;
+using static System.Net.WebRequestMethods;
 
 namespace NSF2SQL
 {
@@ -149,7 +153,7 @@ namespace NSF2SQL
                 {
                     NotesSession nSession = initSession(notesPassword);
                     NotesDatabase db;
-                    if (File.Exists(notesFile) || (notesServer == "" && notesDomain == ""))
+                    if (System.IO.File.Exists(notesFile) || (notesServer == "" && notesDomain == ""))
                     {
                         db = nSession.GetDatabase("", notesFile, false);
                         onLocalComputer = true;
@@ -329,6 +333,15 @@ namespace NSF2SQL
                 MessageBox.Show("Select a database.");
                 return;
             }
+
+            //txbAttachmentsFolder
+            //if (string.IsNullOrEmpty(txbAttachmentsFolder.Text))
+            //{
+            //    MessageBox.Show("Select a folder for attachments.");
+            //    return;
+            //}
+            string folderLocation = "F:\\FILENOTES";
+
             int total = 0;
             long startTicks = 0;
             long lastTicks = 0;
@@ -362,6 +375,7 @@ namespace NSF2SQL
                     NotesDocumentCollection allDocuments = db.AllDocuments;
                     NotesDocument doc = allDocuments.GetFirstDocument();
                     startTicks = DateTime.Now.Ticks;
+
                     for (int i = 0; i < total; i++)
                     {
                         //check if cancelled
@@ -384,6 +398,32 @@ namespace NSF2SQL
                             //set multiple values
                             foreach (NotesItem item in doc.Items)
                             {
+                                // FILE
+                                object[] items = (object[])doc.Items;
+
+                                if (item.Name.StartsWith("$FILE") )
+                                {
+                                    //NotesItem file = doc.GetFirstItem("$File");
+
+                                    //string fileName = ((object[])item.Values)[0].ToString();
+
+                                    //string fileName = (string)doc.GetItemValue("$FILE")[0]; 
+                                    string fileName = (string)item.Values[0];
+                                    
+                                    if(fileName != null)
+                                    {
+                                        NotesEmbeddedObject attachfile = doc.GetAttachment(fileName);
+                                        // TODO : upload file return path
+                                        //if (attachfile != null)
+                                        //    attachfile.ExtractFile($@"{folderLocation}\{fileName}");
+
+                                        //END TODO
+                                        //attachfile.ExtractFile($@"{txbAttachmentsFolder.Text}\{fileName}");
+                                    }
+                                }
+                                
+                                //END FILE
+
                                 //check if cancelled
                                 if (pDialog.IsCancelled)
                                 {
@@ -398,17 +438,27 @@ namespace NSF2SQL
                                 }
                                 string type = "";
                                 switch (item.type)
-                                {//TODO: get more types
+                                {
+                                    //TODO: get more types
                                     case IT_TYPE.NUMBERS:
                                         type = "decimal(20,10)";
                                         break;
                                     case IT_TYPE.DATETIMES:
                                         type = "datetime";
                                         break;
-                                    case IT_TYPE.ATTACHMENT:
-                                        type = "blob";
-                                        Console.WriteLine(item.Values);
-                                        break;
+
+                                    // ALL TYPE: 
+                                    //Text          => OK
+                                    //Names
+                                    //ATTACHMENT
+                                    //OTHEROBJECT
+                                    //Authors
+                                    //RICHTEXT
+                                    //DATETIMES     => OK
+                                    //NUMBERS       => OK   
+                                    //Readers
+                                    //RFC822TEXT
+                                    //NOTEREFS
                                     default:
                                         type = "text";
                                         break;
@@ -457,6 +507,10 @@ namespace NSF2SQL
                         //update progress
                         pDialog.ReportProgress(i, "Parsing Documents");
                         doc = allDocuments.GetNextDocument(doc);
+                        //if (i == 10000)
+                        //{
+                        //    break;
+                        //}
                     }
                     //add tables for columns with multiple values
                     Dictionary<string, Table> newTables = new Dictionary<string, Table>(tables.Count);
@@ -574,48 +628,71 @@ namespace NSF2SQL
                     {
                         sqlGenerator = new MySqlGenerator();
                     }
+                    else if (exportDialog.PostgresServerExport)
+                    {
+                        sqlGenerator = new PostgresGenerator();
+                    }
 
 
                     if (exportDialog.ServerExport)
                     {
                         InputBox input = null;
-                        Invoke((MethodInvoker)delegate () { input = InputBox.Show(pDialog.Window, "SQL server info?", new InputBoxItem[] { new InputBoxItem("Server", mysqlServer), new InputBoxItem("Database", mysqlDatabase), new InputBoxItem("Username", mysqlUsername), new InputBoxItem("Password", mysqlPassword, true), new InputBoxItem("Number of rows per INSERT", mysqlNumRowsPerInsert.ToString()) }, InputBoxButtons.OKCancel); });
-                        if (input.Result == InputBoxResult.OK)
-                        {
-                            mysqlServer = input.Items["Server"];
-                            mysqlDatabase = input.Items["Database"];
-                            mysqlUsername = input.Items["Username"];
-                            mysqlPassword = input.Items["Password"];
-                            int.TryParse(input.Items["Number of rows per INSERT"], out mysqlNumRowsPerInsert);
+                        //Invoke((MethodInvoker)delegate () { input = InputBox.Show(pDialog.Window, "SQL server info?", new InputBoxItem[] { new InputBoxItem("Server", mysqlServer), new InputBoxItem("Database", mysqlDatabase), new InputBoxItem("Username", mysqlUsername), new InputBoxItem("Password", mysqlPassword, true), new InputBoxItem("Number of rows per INSERT", mysqlNumRowsPerInsert.ToString()) }, InputBoxButtons.OKCancel); });
+                        
+                        //if (input.Result == InputBoxResult.OK)
+                        //{
+                            //mysqlServer = input.Items["Server"];
+                            //mysqlDatabase = input.Items["Database"];
+                            //mysqlUsername = input.Items["Username"];
+                            //mysqlPassword = input.Items["Password"];
+                            //int.TryParse(input.Items["Number of rows per INSERT"], out mysqlNumRowsPerInsert);
+
+                            //TODO SAMPLE FOR POSTGRES
+                            mysqlServer = "192.168.1.8";
+                            mysqlDatabase = "biendongpoc2";
+                            mysqlUsername = "lotusnotes";
+                            mysqlPassword = "lotusnotes";
+                            mysqlNumRowsPerInsert = 1;
+                            // END TODO
 
                             DbConnection conn = null;
                             if (exportDialog.MySqlExport)
                             {
-                                conn = new MySqlConnection("SERVER=" + mysqlServer + ";USERNAME=" + mysqlUsername + ";PASSWORD=" + mysqlPassword + ";");
+                                conn = new MySqlConnection("SERVER=" + mysqlServer + ";Port=6776" + ";USERNAME=" + mysqlUsername + ";PASSWORD=" + mysqlPassword + ";");
                             }
                             else if (exportDialog.SqlServerExport)
                             {
                                 conn = new SqlConnection("Server=" + mysqlServer + ";User Id=" + mysqlUsername + ";Password=" + mysqlPassword + ";");
+                            }
+                            else if (exportDialog.PostgresServerExport)
+                            {
+                                conn = new NpgsqlConnection("Host=" + mysqlServer + ";Port=9432" + ";Database =" + mysqlDatabase+  ";Username=" + mysqlUsername + ";Password=" + mysqlPassword + ";" );
                             }
 
                             startTicks = DateTime.Now.Ticks;
                             conn.Open();
 
                             string[] tokens = null;
-                            if (exportDialog.SqlServerExport)
-                            {
-                                tokens = sqlGenerator.CreateDatabase(mysqlDatabase).Split(new string[] { "GO\r\n" }, StringSplitOptions.None);
-                            }
-                            else
-                            {
-                                tokens = new string[] { sqlGenerator.CreateDatabase(mysqlDatabase) + sqlGenerator.SetVariables() };
-                            }
 
-                            DbCommand command = conn.CreateCommand();
-                            foreach (string sqlString in tokens)
+                            NpgsqlCommand command = (NpgsqlCommand) conn.CreateCommand();
+
+                            if (!exportDialog.PostgresServerExport)
                             {
-                                command.CommandText = sqlString;
-                                command.ExecuteNonQuery();
+                                if (exportDialog.SqlServerExport)
+                                {
+                                    tokens = sqlGenerator.CreateDatabase(mysqlDatabase).Split(new string[] { "GO\r\n" }, StringSplitOptions.None);
+                                }
+                                else if (exportDialog.MySqlExport)
+                                {
+                                    tokens = new string[] { sqlGenerator.CreateDatabase(mysqlDatabase) + sqlGenerator.SetVariables() };
+                                }
+
+                                foreach (string sqlString in tokens)
+                                {
+                                    command.CommandText = sqlString;
+                                    command.CommandType = System.Data.CommandType.Text;
+                                    command.ExecuteNonQuery();
+                                }
                             }
                             do
                             {
@@ -626,15 +703,16 @@ namespace NSF2SQL
                                         try
                                         {
                                             //check if cancelled
-                                            if (pDialog.IsCancelled)
-                                            {
-                                                e.Cancel = true;
-                                                return;
-                                            }
+                                            //if (pDialog.IsCancelled)
+                                            //{
+                                            //    e.Cancel = true;
+                                            //    return;
+                                            //}
                                             pDialog.ReportProgress(++count, "Inserting SQL");
                                             if (table.Columns.Count > 0)
                                             {
                                                 command.CommandText = sqlGenerator.CreateTable(table);
+                                                command.CommandType = System.Data.CommandType.Text;
                                                 command.ExecuteNonQuery();
                                                 List<string> rows = sqlGenerator.InsertTableRowsToList(table);
                                                 for (int i = 0; i < rows.Count; i += mysqlNumRowsPerInsert)
@@ -642,6 +720,7 @@ namespace NSF2SQL
                                                     command.CommandText = sqlGenerator.BeginInsertTable(table);
                                                     command.CommandText += String.Join(",", rows.GetRange(i, Math.Min(rows.Count - i, mysqlNumRowsPerInsert))) + ";\n";
                                                     command.CommandText += sqlGenerator.EndInsertTable(table);
+                                                    command.CommandType = System.Data.CommandType.Text;
                                                     command.ExecuteNonQuery();
                                                     pDialog.ReportProgress(count, "Inserting SQL");
                                                 }
@@ -649,8 +728,12 @@ namespace NSF2SQL
                                         }
                                         catch (Exception exc)
                                         {
-                                            Console.WriteLine(exc.ToString());
-                                            Console.WriteLine("Query Loooix: " + command.CommandText);
+                                            Console.WriteLine(DateTime.Now + exc.ToString());
+                                            Console.WriteLine("Query Loooix1: " + command.CommandText);
+                                            if(conn.State != System.Data.ConnectionState.Open)
+                                            {
+                                                conn.Open();
+                                            }
                                             continue;
                                         }
                                     }
@@ -660,15 +743,16 @@ namespace NSF2SQL
                                         try
                                         {
                                             //check if cancelled
-                                            if (pDialog.IsCancelled)
-                                            {
-                                                e.Cancel = true;
-                                                return;
-                                            }
+                                            //if (pDialog.IsCancelled)
+                                            //{
+                                            //    e.Cancel = true;
+                                            //    return;
+                                            //}
                                             pDialog.ReportProgress(++count, "Inserting SQL");
                                             if (table.Columns.Count > 0)
                                             {
                                                 command.CommandText = sqlGenerator.CreateTable(table);
+                                                command.CommandType = System.Data.CommandType.Text;
                                                 command.ExecuteNonQuery();
                                                 List<string> rows = sqlGenerator.InsertTableRowsToList(table);
                                                 for (int i = 0; i < rows.Count; i += mysqlNumRowsPerInsert)
@@ -676,6 +760,7 @@ namespace NSF2SQL
                                                     command.CommandText = sqlGenerator.BeginInsertTable(table);
                                                     command.CommandText += String.Join(",", rows.GetRange(i, Math.Min(rows.Count - i, mysqlNumRowsPerInsert))) + ";\n";
                                                     command.CommandText += sqlGenerator.EndInsertTable(table);
+                                                    command.CommandType = System.Data.CommandType.Text;
                                                     command.ExecuteNonQuery();
                                                     pDialog.ReportProgress(count, "Inserting SQL");
                                                 }
@@ -683,33 +768,40 @@ namespace NSF2SQL
                                         }
                                         catch (Exception exc)
                                         {
-                                            Console.WriteLine(exc.ToString());
-                                            Console.WriteLine("Query Loooix: " + command.CommandText);
+                                            Console.WriteLine(DateTime.Now + exc.ToString());
+                                            Console.WriteLine("Query Loooix2: " + command.CommandText);
+                                            if (conn.State != System.Data.ConnectionState.Open)
+                                            {
+                                                conn.Open();
+                                            }
                                             continue;
                                         }
 
                                     }
 
-                                    command.CommandText = sqlGenerator.RestoreVariables();
-                                    if (!string.IsNullOrEmpty(command.CommandText))
-                                    {
-                                        command.ExecuteNonQuery();
-                                    }
+                                    //command.CommandText = sqlGenerator.RestoreVariables();
+                                    //if (!string.IsNullOrEmpty(command.CommandText))
+                                    //{
+                                    //    command.CommandType = System.Data.CommandType.Text;
+                                    //    command.ExecuteNonQuery();
+                                    //}
                                     complete = true;
                                 }
                                 catch (Exception ex)
                                 {
                                     //MessageBox.Show(ex.Message);
                                     Console.WriteLine(ex.ToString());
+                                    Console.WriteLine("LOI DONG KET NOI1");
                                 }
                                 finally
                                 {
                                     conn.Close();
+                                    Console.WriteLine("LOI DONG KET NOI2");
                                 }
 
                                 conn.Dispose();
                             } while (!complete);
-                        }
+                        //}
                     }
 
 
