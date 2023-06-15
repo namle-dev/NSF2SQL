@@ -16,6 +16,8 @@ using System.Net.Mail;
 using static System.Net.Mime.MediaTypeNames;
 using Npgsql;
 using static System.Net.WebRequestMethods;
+using System.Xml.Linq;
+using Google.Protobuf.WellKnownTypes;
 
 namespace NSF2SQL
 {
@@ -400,7 +402,7 @@ namespace NSF2SQL
                             {
                                 // FILE
                                 object[] items = (object[])doc.Items;
-
+                                
                                 if (item.Name.StartsWith("$FILE") )
                                 {
                                     //NotesItem file = doc.GetFirstItem("$File");
@@ -413,6 +415,21 @@ namespace NSF2SQL
                                     if(fileName != null)
                                     {
                                         NotesEmbeddedObject attachfile = doc.GetAttachment(fileName);
+                                        if (fileName.Contains("ATTHWQO0"))
+                                        {
+                                            String realFileName = attachfile.Source;
+                                            bool check = true;
+                                        }
+                                        if (fileName.Contains("232 1969"))
+                                        {
+                                            String realFileName = attachfile.Source;
+                                            bool check = true;
+                                        }
+
+                                        // TEST UPLOAD FILE
+                                        AmazonS3Uploader uploader = new AmazonS3Uploader();
+                                        //uploader.UploadFile
+
                                         // TODO : upload file return path
                                         //if (attachfile != null)
                                         //    attachfile.ExtractFile($@"{folderLocation}\{fileName}");
@@ -421,7 +438,15 @@ namespace NSF2SQL
                                         //attachfile.ExtractFile($@"{txbAttachmentsFolder.Text}\{fileName}");
                                     }
                                 }
-                                
+                                //String fileNames = "";
+                                //if (doc.HasEmbedded && doc.EmbeddedObjects != null)
+                                //{
+                                //    foreach (NotesEmbeddedObject embeddedObject in doc.EmbeddedObjects)
+                                //    {
+                                //        fileNames += ";" + embeddedObject.Source;
+                                //    }
+                                //}
+
                                 //END FILE
 
                                 //check if cancelled
@@ -649,7 +674,7 @@ namespace NSF2SQL
 
                             //TODO SAMPLE FOR POSTGRES
                             mysqlServer = "192.168.1.8";
-                            mysqlDatabase = "biendongpoc2";
+                            mysqlDatabase = "biendongpoc_check";
                             mysqlUsername = "lotusnotes";
                             mysqlPassword = "lotusnotes";
                             mysqlNumRowsPerInsert = 1;
@@ -711,6 +736,7 @@ namespace NSF2SQL
                                             pDialog.ReportProgress(++count, "Inserting SQL");
                                             if (table.Columns.Count > 0)
                                             {
+                                                
                                                 command.CommandText = sqlGenerator.CreateTable(table);
                                                 command.CommandType = System.Data.CommandType.Text;
                                                 command.ExecuteNonQuery();
@@ -742,12 +768,14 @@ namespace NSF2SQL
                                     {
                                         try
                                         {
-                                            //check if cancelled
-                                            //if (pDialog.IsCancelled)
-                                            //{
-                                            //    e.Cancel = true;
-                                            //    return;
-                                            //}
+                                        //check if cancelled
+                                        //if (pDialog.IsCancelled)
+                                        //{
+                                        //    e.Cancel = true;
+                                        //    return;
+                                        //}
+
+                                            
                                             pDialog.ReportProgress(++count, "Inserting SQL");
                                             if (table.Columns.Count > 0)
                                             {

@@ -39,12 +39,49 @@ namespace NSF2SQL
             //Console.WriteLine("CreateTable : " + table.Name);
             try
             {
+                switch (table.Name)
+                {
+                    case "Group":
+                        table.Name = "groups";
+                        break;
+                    case "User":
+                        table.Name = "users";
+                        break;
+                    case "From":
+                        table.Name = "froms";
+                        break;
+                    case "Report":
+                        table.Name = "reports";
+                        break;
+                }
+
                 string query =
-                "CREATE TABLE \"" + table.Name + "\" (\n" +
+                "CREATE TABLE " + table.Name.Replace(" ","") + " ( \n" +
                 "id INT NOT NULL,\n";
                 foreach (Column column in table.Columns.Values)
                 {
-                    query += " \"" + column.Name + "\" " + column.Type + " NULL,\n";
+                    if (column.Name == "Group")
+                    {
+                        column.Name = "groups";
+                    }
+                    else if (column.Name == "User")
+                    {
+                        column.Name = "users";
+                    } 
+                    else if (column.Name == "From")
+                    {
+                        column.Name = "froms";
+                    }
+                    else if (column.Name == "Report")
+                    {
+                        column.Name = "reports";
+                    }
+                    else if (column.Name == "References")
+                    {
+                        column.Name = "References_s";
+                    }
+                    
+                    query += " " + column.Name.Replace("-","").Replace(" ","") + " " + column.Type + " NULL,\n";
                 }
                 query += "PRIMARY KEY (id)";
                 //if (table.LinkedTable != null)
@@ -72,13 +109,47 @@ namespace NSF2SQL
             //Console.WriteLine("Begin Insert Table : " + table.Name);
             try
             {
+                switch (table.Name)
+                {
+                    case "Group":
+                        table.Name = "groups";
+                        break;
+                    case "User":
+                        table.Name = "users";
+                        break;
+                    case "From":
+                        table.Name = "froms";
+                        break;
+                    case "Report":
+                        table.Name = "reports";
+                        break;
+                }
+                // Convert Column
+                
+                foreach (Column column in table.Columns.Values)
+                {
+                    if (column.Name == "Group")
+                    {
+                        column.Name = "groups";
+                    }
+                    else if (column.Name == "User")
+                    {
+                        column.Name = "users";
+                    }
+                    else if (column.Name == "From")
+                    {
+                        column.Name = "froms";
+                    }
+                    else if (column.Name == "Report")
+                    {
+                        column.Name = "reports";
+                    }
+                }
 
-                //"LOCK TABLES " + table.Name + " WRITE;\n" +
-                //"/*!40000 ALTER TABLE " + table.Name + " DISABLE KEYS */;\n" +
-                //string query = "INSERT INTO \"" + table.Name + "\" (id," + String.Join(",", table.Columns.Keys) + ") VALUES";
-                IEnumerable<String> listColumn = table.Columns.Keys.Select(x => "\"" + x + "\"");
+                IEnumerable<String> listColumn = table.Columns.Values.Select(x => x.Name.Replace("-","").Replace(" ",""));
 
-                string query = " INSERT INTO \"" + table.Name + "\" (id," + String.Join(",", listColumn) + ") VALUES";
+                //IEnumerable<String> listColumn = table.Columns.Keys.Select(x => x);
+                string query = " INSERT INTO " + table.Name.Replace(" ","") + " (id," + String.Join(",", listColumn) + ") VALUES";
                 
                 return query.Replace("$", "");
             }
